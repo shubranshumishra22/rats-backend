@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  username      String   @unique
+  password      String
+  points        Int      @default(0)
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  lastActiveAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  goals               Goal[]
+  sharedGoals         SharedGoal[]
+  friendsInitiated    Friend[] @relation("userInitiated")
+  friendsReceived     Friend[] @relation("userReceived")
+  goalCompletions     GoalCompletion[]
+  refreshTokens       RefreshToken[]
+  activities          Activity[]
+
+  @@map("users")
+}
+
+model Friend {
+  id        String   @id @default(uuid())
+  status    String   @default("pending") // pending, accepted, blocked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  userIdInitiated String
+  userIdReceived  String
+
+  // Relations
+  userInitiated   User @relation("userInitiated", fields: [userIdInitiated], references: [id], onDelete: Cascade)
+  userReceived    User @relation("userReceived", fields: [userIdReceived], references: [id], onDelete: Cascade)
+
+  @@unique([userIdInitiated, userIdReceived])
+  @@index([userIdInitiated])
+  @@index([userIdReceived])
+  @@map("friends")
+}
+
+model Goal {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  frequency     String   // daily, weekly, yearly
+  points        Int      @default(10)
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Foreign key
+  userId String
+
+  // Relations
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedGoals SharedGoal[]
+  completions GoalCompletion[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model SharedGoal {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  goalId String
+  userId String
+
+  // Relations
+  goal Goal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, userId])
+  @@index([goalId])
+  @@index([userId])
+  @@map("shared_goals")
+}
+
+model GoalCompletion {
+  id        String   @id @default(uuid())
+  points    Int
+  periodKey String   // Format: "YYYY-MM-DD" for daily, "YYYY-WW" for weekly, "YYYY" for yearly
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  goalId String
+  userId String
+
+  // Relations
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Unique constraint ensures one completion per goal per user per period (idempotent)
+  @@unique([goalId, userId, periodKey])
+  @@index([goalId])
+  @@index([userId])
+  @@index([periodKey])
+  @@map("goal_completions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Foreign key
+  userId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  type      String   // goal_completed, goal_created, friend_added, streak_milestone, points_earned
+  message   String
+  metadata  Json?    // Additional data like goalId, points, streakCount, etc.
+  createdAt DateTime @default(now())
+
+  // Foreign key
+  userId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([type])
+  @@map("activities")
+}
