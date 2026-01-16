@@ -3,6 +3,29 @@ const crypto = require('crypto');
 const config = require('../config');
 const prisma = require('../db/prisma');
 
+// Parse duration string (e.g., '14d', '7d', '24h') to milliseconds
+const parseDurationToMs = (duration) => {
+  const match = duration.match(/^(\d+)([dhms])$/);
+  if (!match) return 7 * 24 * 60 * 60 * 1000; // Default 7 days
+  
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  
+  switch (unit) {
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'm': return value * 60 * 1000;
+    case 's': return value * 1000;
+    default: return 7 * 24 * 60 * 60 * 1000;
+  }
+};
+
+// Parse duration string to days for database expiration
+const parseDurationToDays = (duration) => {
+  const ms = parseDurationToMs(duration);
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
+};
+
 const generateAccessToken = (userId) => {
   return jwt.sign({ userId }, config.jwt.accessSecret, {
     expiresIn: config.jwt.accessExpiresIn,
@@ -13,9 +36,10 @@ const generateRefreshToken = async (userId) => {
   // Generate a secure random token
   const token = crypto.randomBytes(64).toString('hex');
   
-  // Calculate expiration (7 days)
+  // Calculate expiration based on config
+  const days = parseDurationToDays(config.jwt.refreshExpiresIn);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  expiresAt.setDate(expiresAt.getDate() + days);
 
   // Store in database
   await prisma.refreshToken.create({
@@ -77,13 +101,14 @@ const rotateRefreshToken = async (oldToken, userId) => {
 
 const setRefreshTokenCookie = (res, token) => {
   const isProduction = process.env.NODE_ENV === 'production';
+  const maxAge = parseDurationToMs(config.jwt.refreshExpiresIn);
   
   res.cookie('refreshToken', token, {
     httpOnly: true,
     secure: isProduction, // HTTPS only in production
     sameSite: isProduction ? 'none' : 'strict', // 'none' for cross-origin in production
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    path: '/api/v1/auth',
+    maxAge,
+    path: '/',
   });
 };
 
@@ -94,7 +119,7 @@ const clearRefreshTokenCookie = (res) => {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'strict',
-    path: '/api/v1/auth',
+    path: '/',
   });
 };
 
