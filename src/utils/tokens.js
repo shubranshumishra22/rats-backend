@@ -76,20 +76,24 @@ const rotateRefreshToken = async (oldToken, userId) => {
 };
 
 const setRefreshTokenCookie = (res, token) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   res.cookie('refreshToken', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProduction, // HTTPS only in production
+    sameSite: isProduction ? 'none' : 'strict', // 'none' for cross-origin in production
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/api/v1/auth',
   });
 };
 
 const clearRefreshTokenCookie = (res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'strict',
     path: '/api/v1/auth',
   });
 };
