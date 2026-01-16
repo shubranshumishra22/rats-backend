@@ -1,3 +1,4 @@
+const { Prisma } = require('@prisma/client');
 const prisma = require('../db/prisma');
 const { getFriendIds } = require('./friend.service');
 
@@ -53,6 +54,9 @@ const getAllTimeLeaderboard = async (userIds, currentUserId, limit) => {
 const getPeriodLeaderboard = async (userIds, currentUserId, period, limit) => {
   const startDate = getStartOfPeriod(period);
 
+  // Use Prisma.join for UUID array
+  const userIdList = Prisma.join(userIds.map(id => Prisma.sql`${id}::uuid`));
+
   // Raw SQL for optimal aggregation performance
   const leaderboard = await prisma.$queryRaw`
     SELECT 
@@ -63,7 +67,7 @@ const getPeriodLeaderboard = async (userIds, currentUserId, period, limit) => {
     FROM users u
     LEFT JOIN goal_completions gc ON u.id = gc."userId" 
       AND gc."createdAt" >= ${startDate}
-    WHERE u.id = ANY(${userIds}::uuid[])
+    WHERE u.id IN (${userIdList})
     GROUP BY u.id, u.username
     ORDER BY points DESC, completions DESC
     LIMIT ${limit}
@@ -93,6 +97,9 @@ const getLeaderboardWithStats = async (userId) => {
 
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Use Prisma.join for UUID array
+  const userIdList = Prisma.join(userIds.map(id => Prisma.sql`${id}::uuid`));
+
   // Single optimized query with multiple aggregations
   const stats = await prisma.$queryRaw`
     SELECT 
@@ -105,7 +112,7 @@ const getLeaderboardWithStats = async (userId) => {
       COUNT(gc.id)::int as total_completions
     FROM users u
     LEFT JOIN goal_completions gc ON u.id = gc."userId"
-    WHERE u.id = ANY(${userIds}::uuid[])
+    WHERE u.id IN (${userIdList})
     GROUP BY u.id, u.username, u.points
     ORDER BY u.points DESC
   `;
@@ -130,6 +137,9 @@ const getUserRank = async (userId) => {
   const friendIds = await getFriendIds(userId);
   const userIds = [...friendIds, userId];
 
+  // Use Prisma.join for UUID array
+  const userIdList = Prisma.join(userIds.map(id => Prisma.sql`${id}::uuid`));
+
   const result = await prisma.$queryRaw`
     WITH ranked_users AS (
       SELECT 
@@ -137,7 +147,7 @@ const getUserRank = async (userId) => {
         points,
         RANK() OVER (ORDER BY points DESC) as rank
       FROM users
-      WHERE id = ANY(${userIds}::uuid[])
+      WHERE id IN (${userIdList})
     )
     SELECT rank::int, points::int
     FROM ranked_users
@@ -168,6 +178,9 @@ const getGoalLeaderboard = async (goalId, userId) => {
   }
 
   const participantIds = [goal.userId, ...goal.sharedGoals.map((sg) => sg.userId)];
+  
+  // Use Prisma.join for UUID array
+  const participantIdList = Prisma.join(participantIds.map(id => Prisma.sql`${id}::uuid`));
 
   const leaderboard = await prisma.$queryRaw`
     SELECT 
@@ -177,7 +190,7 @@ const getGoalLeaderboard = async (goalId, userId) => {
       COUNT(gc.id)::int as completions
     FROM users u
     LEFT JOIN goal_completions gc ON u.id = gc."userId" AND gc."goalId" = ${goalId}::uuid
-    WHERE u.id = ANY(${participantIds}::uuid[])
+    WHERE u.id IN (${participantIdList})
     GROUP BY u.id, u.username
     ORDER BY completions DESC, points DESC
   `;
