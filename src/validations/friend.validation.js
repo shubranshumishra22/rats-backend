@@ -23,8 +23,15 @@ const friendIdSchema = z.object({
   }),
 });
 
+const userIdParamSchema = z.object({
+  params: z.object({
+    userId: z.string().uuid('Invalid user ID'),
+  }),
+});
+
 module.exports = {
   sendRequestSchema,
   respondRequestSchema,
   friendIdSchema,
+  userIdParamSchema,
 };

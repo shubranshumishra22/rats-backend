@@ -13,6 +13,7 @@ const friendRoutes = require('./routes/friend.routes');
 const goalRoutes = require('./routes/goal.routes');
 const leaderboardRoutes = require('./routes/leaderboard.routes');
 const activityRoutes = require('./routes/activity.routes');
+const messageRoutes = require('./routes/message.routes');
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/v1/friends', friendRoutes);
 app.use('/api/v1/goals', goalRoutes);
 app.use('/api/v1/leaderboard', leaderboardRoutes);
 app.use('/api/v1/activities', activityRoutes);
+app.use('/api/v1/messages', messageRoutes);
 
 // Error handling
 app.use(notFoundHandler);

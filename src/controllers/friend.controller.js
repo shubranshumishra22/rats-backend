@@ -46,10 +46,23 @@ const removeFriend = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get friendship status with a specific user
+ */
+const getFriendshipStatus = asyncHandler(async (req, res) => {
+  const status = await friendService.getFriendshipStatus(req.user.id, req.params.userId);
+
+  res.status(200).json({
+    success: true,
+    data: status,
+  });
+});
+
 module.exports = {
   getFriends,
   getPendingRequests,
   sendRequest,
   respondToRequest,
   removeFriend,
+  getFriendshipStatus,
 };

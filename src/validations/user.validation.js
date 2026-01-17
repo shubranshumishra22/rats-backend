@@ -12,7 +12,23 @@ const userIdSchema = z.object({
   }),
 });
 
+const usernameSchema = z.object({
+  params: z.object({
+    username: z.string().min(1, 'Username is required'),
+  }),
+});
+
+const updateProfileSchema = z.object({
+  body: z.object({
+    displayName: z.string().max(50).optional(),
+    bio: z.string().max(500).optional(),
+    avatarUrl: z.string().url().optional().nullable(),
+  }),
+});
+
 module.exports = {
   searchUsersSchema,
   userIdSchema,
+  usernameSchema,
+  updateProfileSchema,
 };

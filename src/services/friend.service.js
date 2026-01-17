@@ -66,7 +66,7 @@ const getPendingRequests = async (userId) => {
 
 const sendRequest = async (fromUserId, toUserId) => {
   if (fromUserId === toUserId) {
-    throw new BadRequestError('Cannot send friend request to yourself');
+    throw new BadRequestError('Cannot send friend request to yourself', 'SELF_REQUEST');
   }
 
   const targetUser = await prisma.user.findUnique({
@@ -74,7 +74,7 @@ const sendRequest = async (fromUserId, toUserId) => {
   });
 
   if (!targetUser) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError('User not found', 'USER_NOT_FOUND');
   }
 
   const existingFriendship = await prisma.friend.findFirst({
@@ -88,13 +88,19 @@ const sendRequest = async (fromUserId, toUserId) => {
 
   if (existingFriendship) {
     if (existingFriendship.status === 'accepted') {
-      throw new ConflictError('Already friends');
+      throw new ConflictError('Already friends', 'ALREADY_FRIENDS');
     }
     if (existingFriendship.status === 'pending') {
-      throw new ConflictError('Friend request already pending');
+      // Check if this user sent the request or received it
+      if (existingFriendship.userIdInitiated === fromUserId) {
+        throw new ConflictError('Friend request already sent', 'FRIEND_REQUEST_ALREADY_SENT');
+      } else {
+        // The other user sent us a request - they should accept instead
+        throw new ConflictError('This user has already sent you a request', 'INCOMING_REQUEST_EXISTS');
+      }
     }
     if (existingFriendship.status === 'blocked') {
-      throw new BadRequestError('Cannot send friend request');
+      throw new BadRequestError('Cannot send friend request', 'BLOCKED');
     }
   }
 
@@ -224,6 +230,47 @@ const getFriendIds = async (userId) => {
   return friendIds;
 };
 
+/**
+ * Get friendship status between current user and another user
+ * Returns: 'none' | 'friends' | 'request_sent' | 'request_received'
+ */
+const getFriendshipStatus = async (currentUserId, targetUserId) => {
+  if (currentUserId === targetUserId) {
+    return { status: 'self' };
+  }
+
+  const friendship = await prisma.friend.findFirst({
+    where: {
+      OR: [
+        { userIdInitiated: currentUserId, userIdReceived: targetUserId },
+        { userIdInitiated: targetUserId, userIdReceived: currentUserId },
+      ],
+    },
+  });
+
+  if (!friendship) {
+    return { status: 'none' };
+  }
+
+  if (friendship.status === 'accepted') {
+    return { status: 'friends', friendshipId: friendship.id };
+  }
+
+  if (friendship.status === 'pending') {
+    if (friendship.userIdInitiated === currentUserId) {
+      return { status: 'request_sent', requestId: friendship.id };
+    } else {
+      return { status: 'request_received', requestId: friendship.id };
+    }
+  }
+
+  if (friendship.status === 'blocked') {
+    return { status: 'blocked' };
+  }
+
+  return { status: 'none' };
+};
+
 module.exports = {
   getFriends,
   getPendingRequests,
@@ -231,4 +278,5 @@ module.exports = {
   respondToRequest,
   removeFriend,
   getFriendIds,
+  getFriendshipStatus,
 };

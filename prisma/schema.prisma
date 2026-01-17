@@ -12,26 +12,32 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  username      String   @unique
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String    @unique
   password      String
-  points        Int      @default(0)
-  currentStreak Int      @default(0)
-  longestStreak Int      @default(0)
+  displayName   String?
+  bio           String?
+  avatarUrl     String?
+  points        Int       @default(0)
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
   lastActiveAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relations
-  goals               Goal[]
-  sharedGoals         SharedGoal[]
-  friendsInitiated    Friend[] @relation("userInitiated")
-  friendsReceived     Friend[] @relation("userReceived")
-  goalCompletions     GoalCompletion[]
-  refreshTokens       RefreshToken[]
-  activities          Activity[]
+  goals                    Goal[]
+  sharedGoals              SharedGoal[]
+  friendsInitiated         Friend[] @relation("userInitiated")
+  friendsReceived          Friend[] @relation("userReceived")
+  goalCompletions          GoalCompletion[]
+  refreshTokens            RefreshToken[]
+  activities               Activity[]
+  conversationParticipants ConversationParticipant[]
+  messagesSent             Message[]
 
+  @@index([username])
   @@map("users")
 }
 
@@ -153,4 +159,64 @@ model Activity {
   @@index([createdAt])
   @@index([type])
   @@map("activities")
+}
+
+// ===========================================
+// Real-time Messaging Models
+// ===========================================
+// Using Socket.IO for real-time messaging because:
+// 1. More control over connection lifecycle
+// 2. Better support for rooms/channels
+// 3. Built-in reconnection handling
+// 4. Works independently of database (Supabase Realtime ties you to Postgres triggers)
+
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  lastReadAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  // Foreign keys
+  conversationId String
+  userId         String
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  conversationId String
+  senderId       String
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("messages")
 }
