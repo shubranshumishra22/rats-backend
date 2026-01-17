@@ -197,6 +197,8 @@ const removeFriend = async (userId, friendshipId) => {
 };
 
 const getFriendIds = async (userId) => {
+  console.log('[getFriendIds] Looking for friends of userId:', userId);
+  
   const friendships = await prisma.friend.findMany({
     where: {
       status: 'accepted',
@@ -211,9 +213,15 @@ const getFriendIds = async (userId) => {
     },
   });
 
-  return friendships.map((f) => 
+  console.log('[getFriendIds] Found friendships:', friendships);
+
+  const friendIds = friendships.map((f) => 
     f.userIdInitiated === userId ? f.userIdReceived : f.userIdInitiated
   );
+  
+  console.log('[getFriendIds] Extracted friend IDs:', friendIds);
+  
+  return friendIds;
 };
 
 module.exports = {
